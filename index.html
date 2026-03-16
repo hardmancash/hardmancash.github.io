@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>zeanzack$hardmancash</title>
+<title>App</title>
 <!-- ══ TELEGRAM MINI APP SDK ══ -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -626,22 +626,79 @@ window.checkCode   = checkCode;
   } catch (_) {}
 
   /* ── 5. Haptic feedback ── */
-  if (tg.HapticFeedback) {
+  const hap = tg.HapticFeedback;
+  if (hap) {
+
     document.addEventListener('click', function (e) {
-      const btn = e.target.closest('.dial-btn, .unlock-btn, .buy-btn');
-      if (btn) tg.HapticFeedback.impactOccurred('light');
+      const t = e.target;
+
+      /* Стрелки прокрутки замка — лёгкий тик */
+      if (t.closest('.dial-btn')) {
+        hap.impactOccurred('light');
+        return;
+      }
+
+      /* Кнопка «Открыть замок» — средний удар (результат отдельно) */
+      if (t.closest('.unlock-btn')) {
+        hap.impactOccurred('medium');
+        return;
+      }
+
+      /* Кнопка «Купить» — тяжёлый удар */
+      if (t.closest('.buy-btn')) {
+        hap.impactOccurred('heavy');
+        return;
+      }
+
+      /* Кнопка закрыть панель ✕ — лёгкий */
+      if (t.closest('.btn-close')) {
+        hap.impactOccurred('light');
+        return;
+      }
+
+      /* Клик по персонажу / двери / замку на сцене — средний */
+      if (t.closest('.rect[onclick]') || t.closest('.rect')) {
+        hap.impactOccurred('medium');
+        return;
+      }
+
+      /* Backdrop (закрытие) — лёгкий */
+      if (t.id === 'backdrop') {
+        hap.impactOccurred('light');
+        return;
+      }
     });
 
+    /* Замок: успех → длинная вибрация, ошибка → двойной удар */
     const _checkCode = window.checkCode;
     window.checkCode = function () {
       const wasSolved = solved;
       _checkCode();
       if (solved && !wasSolved) {
-        tg.HapticFeedback.notificationOccurred('success');
+        /* Успех: нотификация + задержка + ещё один удар */
+        hap.notificationOccurred('success');
+        setTimeout(function () { hap.impactOccurred('heavy'); }, 200);
       } else if (!solved) {
-        tg.HapticFeedback.notificationOccurred('error');
+        /* Ошибка: двойной удар с задержкой */
+        hap.notificationOccurred('error');
+        setTimeout(function () { hap.impactOccurred('medium'); }, 150);
       }
     };
+
+    /* Переход между сценами — rigid (жёсткий щелчок) */
+    const _goToScene = window.goToScene;
+    window.goToScene = function (n) {
+      if (n !== currentScene) hap.impactOccurred('rigid');
+      _goToScene(n);
+    };
+
+    /* Открытие панели — soft (мягкий) */
+    const _openPanelHap = window.openPanel;
+    window.openPanel = function (id) {
+      hap.impactOccurred('soft');
+      _openPanelHap(id);
+    };
+
   }
 })();
 </script>
