@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>zeanzack$hardmancash</title>
+<title>App</title>
 <!-- ══ TELEGRAM MINI APP SDK ══ -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -566,140 +566,131 @@ window.checkCode   = checkCode;
      ══════════════════════════════════════════════ -->
 <script>
 (function () {
-  /* ── 1. Инициализация ── */
   const tg = window.Telegram && window.Telegram.WebApp;
-  if (!tg) return; // запущено не в Telegram — ничего не делаем
 
-  tg.ready();    // сообщаем Telegram: приложение загружено
-  tg.expand();   // раскрываем на весь экран
+  /* ── 1. Инициализация Telegram (только если внутри Telegram) ── */
+  if (tg) {
+    tg.ready();
+    tg.expand();
 
-  /* ── 2. Кнопка «Назад» — показываем когда открыта панель ── */
-  const BackBtn = tg.BackButton;
+    /* Кнопка «Назад» */
+    const BackBtn = tg.BackButton;
+    const _openPanel  = window.openPanel;
+    const _closePanel = window.closePanel;
+    const _closeAll   = window.closeAll;
 
-  const _openPanel  = window.openPanel;
-  const _closePanel = window.closePanel;
-  const _closeAll   = window.closeAll;
-
-  window.openPanel = function (id) {
-    _openPanel(id);
-    BackBtn.show();
-  };
-  window.closePanel = function (id) {
-    _closePanel(id);
-    BackBtn.hide();
-  };
-  window.closeAll = function () {
-    _closeAll();
-    BackBtn.hide();
-  };
-
-  BackBtn.onClick(function () {
-    window.closeAll();
-  });
-
-  /* ── 3. Кнопка «Купить» — отправляем данные боту ── */
-  document.addEventListener('click', function (e) {
-    if (!e.target.classList.contains('buy-btn')) return;
-
-    const sceneNum = currentScene || 1;
-    const cfg      = SCENES[sceneNum];
-
-    const payload = JSON.stringify({
-      action : 'buy',
-      scene  : sceneNum,
-      name   : cfg ? cfg.name  : '',
-      price  : cfg ? cfg.price : '',
-    });
-
-    if (tg.initData) {
-      tg.sendData(payload); // бот получит это через answerWebAppQuery
-    } else {
-      alert('sendData: ' + payload); // тестовый режим вне Telegram
-    }
-  });
-
-  /* ── 4. Цвет статус-бара под тему Telegram ── */
-  try {
-    const color = tg.themeParams.bg_color || '#111118';
-    tg.setHeaderColor(color);
-    tg.setBackgroundColor(color);
-  } catch (_) {}
-
-  /* ── 5. Haptic feedback ── */
-  const hap = tg.HapticFeedback;
-  if (hap) {
-
-    document.addEventListener('click', function (e) {
-      const t = e.target;
-
-      /* Стрелки прокрутки замка — лёгкий тик */
-      if (t.closest('.dial-btn')) {
-        hap.impactOccurred('light');
-        return;
-      }
-
-      /* Кнопка «Открыть замок» — средний удар (результат отдельно) */
-      if (t.closest('.unlock-btn')) {
-        hap.impactOccurred('medium');
-        return;
-      }
-
-      /* Кнопка «Купить» — тяжёлый удар */
-      if (t.closest('.buy-btn')) {
-        hap.impactOccurred('heavy');
-        return;
-      }
-
-      /* Кнопка закрыть панель ✕ — лёгкий */
-      if (t.closest('.btn-close')) {
-        hap.impactOccurred('light');
-        return;
-      }
-
-      /* Клик по персонажу / двери / замку на сцене — средний */
-      if (t.closest('.rect[onclick]') || t.closest('.rect')) {
-        hap.impactOccurred('medium');
-        return;
-      }
-
-      /* Backdrop (закрытие) — лёгкий */
-      if (t.id === 'backdrop') {
-        hap.impactOccurred('light');
-        return;
-      }
-    });
-
-    /* Замок: успех → длинная вибрация, ошибка → двойной удар */
-    const _checkCode = window.checkCode;
-    window.checkCode = function () {
-      const wasSolved = solved;
-      _checkCode();
-      if (solved && !wasSolved) {
-        /* Успех: нотификация + задержка + ещё один удар */
-        hap.notificationOccurred('success');
-        setTimeout(function () { hap.impactOccurred('heavy'); }, 200);
-      } else if (!solved) {
-        /* Ошибка: двойной удар с задержкой */
-        hap.notificationOccurred('error');
-        setTimeout(function () { hap.impactOccurred('medium'); }, 150);
-      }
-    };
-
-    /* Переход между сценами — rigid (жёсткий щелчок) */
-    const _goToScene = window.goToScene;
-    window.goToScene = function (n) {
-      if (n !== currentScene) hap.impactOccurred('rigid');
-      _goToScene(n);
-    };
-
-    /* Открытие панели — soft (мягкий) */
-    const _openPanelHap = window.openPanel;
     window.openPanel = function (id) {
-      hap.impactOccurred('soft');
-      _openPanelHap(id);
+      _openPanel(id);
+      BackBtn.show();
     };
+    window.closePanel = function (id) {
+      _closePanel(id);
+      BackBtn.hide();
+    };
+    window.closeAll = function () {
+      _closeAll();
+      BackBtn.hide();
+    };
+    BackBtn.onClick(function () { window.closeAll(); });
 
+    /* Кнопка «Купить» */
+    document.addEventListener('click', function (e) {
+      if (!e.target.classList.contains('buy-btn')) return;
+      const sceneNum = currentScene || 1;
+      const cfg      = SCENES[sceneNum];
+      const payload  = JSON.stringify({
+        action: 'buy', scene: sceneNum,
+        name: cfg ? cfg.name : '', price: cfg ? cfg.price : '',
+      });
+      tg.initData ? tg.sendData(payload) : alert('sendData: ' + payload);
+    });
+
+    /* Цвет статус-бара */
+    try {
+      const color = tg.themeParams.bg_color || '#111118';
+      tg.setHeaderColor(color);
+      tg.setBackgroundColor(color);
+    } catch (_) {}
   }
+
+  /* ══════════════════════════════════════════════
+     ── 2. ВИБРАЦИЯ — работает везде ──
+     Приоритет: Telegram HapticFeedback → navigator.vibrate
+     ══════════════════════════════════════════════ */
+
+  /* Паттерны для navigator.vibrate (мс) */
+  const PATTERNS = {
+    light:   [20],
+    soft:    [35],
+    medium:  [50],
+    rigid:   [70],
+    heavy:   [90],
+    success: [40, 60, 80],
+    error:   [80, 40, 80],
+  };
+
+  function vibrate(type) {
+    /* Сначала пробуем Telegram HapticFeedback */
+    try {
+      const hap = tg && tg.HapticFeedback;
+      if (hap) {
+        if (type === 'success' || type === 'error') {
+          hap.notificationOccurred(type);
+        } else {
+          hap.impactOccurred(type);
+        }
+        return;
+      }
+    } catch (_) {}
+
+    /* Запасной вариант — navigator.vibrate (работает на Android) */
+    try {
+      if (navigator.vibrate) navigator.vibrate(PATTERNS[type] || [40]);
+    } catch (_) {}
+  }
+
+  /* ── Клики по всем интерактивным элементам ── */
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+
+    if (t.closest('.dial-btn'))  { vibrate('light');  return; }
+    if (t.closest('.btn-close')) { vibrate('light');  return; }
+    if (t.id === 'backdrop')     { vibrate('light');  return; }
+    if (t.closest('.unlock-btn')){ vibrate('medium'); return; }
+    if (t.closest('.buy-btn'))   { vibrate('heavy');  return; }
+
+    /* Клики по сценам (персонаж, дверь, замок) */
+    if (t.closest('.rect'))      { vibrate('medium'); return; }
+  }, true); /* capture: true — срабатывает раньше onclick */
+
+  /* ── Результат замка ── */
+  const _checkCode = window.checkCode;
+  window.checkCode = function () {
+    const wasSolved = solved;
+    _checkCode();
+    if (solved && !wasSolved) {
+      vibrate('success');
+      setTimeout(function () { vibrate('heavy'); }, 250);
+    } else if (!solved) {
+      vibrate('error');
+      setTimeout(function () { vibrate('medium'); }, 180);
+    }
+  };
+
+  /* ── Переход между сценами ── */
+  const _goToScene = window.goToScene;
+  window.goToScene = function (n) {
+    if (n !== currentScene) vibrate('rigid');
+    _goToScene(n);
+  };
+
+  /* ── Открытие панели ── */
+  const _openPanelVib = window.openPanel;
+  window.openPanel = function (id) {
+    vibrate('soft');
+    _openPanelVib(id);
+  };
+
 })();
 </script>
 </body>
