@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>App</title>
+<!-- ══ TELEGRAM MINI APP SDK ══ -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@300;700;900&display=swap');
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --surface:  #111118;
+  --surface2: #1a1a24;
+  --border:   #28283a;
+  --text:     #ebebf5;
+  --muted:    #60607a;
+  --green:    #00e676;
+  --purple:   #d500f9;
+  --orange:   #ff6d35;
+  --mono:     'Space Mono', monospace;
+  --display:  'Unbounded', sans-serif;
+}
+
+html, body { width:100%; height:100%; overflow:hidden; background:#000; }
+body { display:flex; justify-content:center; align-items:center; }
+
+#app {
+  position: relative;
+  width: min(430px, 100vw);
+  height: min(932px, 100vh);
+  overflow: hidden;
+}
+
+/* ══════════════════════════════════════
+   📸  ФОТО ДЛЯ СЦЕН
+   Замените пути на свои изображения:
+   ══════════════════════════════════════ */
+#scene1 { background-image: url('room.png'); }
+#scene2 { background-image: url('room2.png'); }
+#scene3 { background-image: url('room3.png'); }
+/* ══════════════════════════════════════ */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #0d0d14;
+  display: none;
+}
+.scene.active { display: block; }
+
+#fade {
+  position: absolute; inset: 0;
+  background: #000; opacity: 0;
+  z-index: 500; pointer-events: none;
+  transition: opacity 0.45s ease;
+}
+#fade.in { opacity:1; pointer-events:all; }
+
+.scene-label {
+  position: absolute; top: 16px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 3px; color: rgba(255,255,255,0.45);
+  text-transform: uppercase; white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+
+/* ══════════════════════════════════════
+   ПРЯМОУГОЛЬНИКИ
+   Чтобы заменить на картинку — добавьте:
+   background-image: url('img.jpg');
+   ══════════════════════════════════════ */
+.rect {
+  position: absolute;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.15s, filter 0.15s;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.);
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+}
+.rect:active { transform: scale(0.95) !important; filter: brightness(0.8); }
+
+/* — Сцена 1 — */
+.s1-green { background: url('vopros.png') center/cover no-repeat; top:41%; left:11%;  width:40%; height:11%; cursor:default!important; }
+.s1-red   { background: url('pers.png') center/cover no-repeat; top:54%; left:15%;  width:45%; height:28%; }
+.s1-blue  { background: url('door.png') center/cover no-repeat; top:36%; right:7%; width:32%; height:26%; }
+
+/* — Сцена 2 — */
+.s2-purple { background-color: #00000000; top:21%; left:8%;  width:30%; height:10%; }
+.s2-green  { background: url('vopros.png') center/cover no-repeat; top:32%; right:6%; width:41%; height:16%; cursor:default!important; }
+.s2-blue   { background: url('door2.png') center/cover no-repeat; top:37%; left:9%;  width:37%; height:37%; }
+.s2-red    { background: url('pers2.png') center/cover no-repeat; top:50%; right:2%; width:66%; height:44%; }
+
+@keyframes squish {
+  0%   { transform: scaleY(1)    scaleX(1);    }
+  15%  { transform: scaleY(0.42) scaleX(1.18); }
+  30%  { transform: scaleY(1.14) scaleX(0.94); }
+  50%  { transform: scaleY(0.8)  scaleX(1.07); }
+  70%  { transform: scaleY(1.06) scaleX(0.97); }
+  100% { transform: scaleY(1)    scaleX(1);    }
+}
+.squish { animation: squish 2.6s cubic-bezier(0.36,.07,.19,.97) infinite; transform-origin: bottom center; }
+
+.door-label {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:3px;
+  pointer-events:none;
+}
+.door-label span { font-size:20px; }
+.door-label small {
+  font-family:var(--mono); font-size:7px;
+  letter-spacing:2px; color:rgba(255,255,255,0.75);
+  text-transform:uppercase;
+}
+
+
+
+.lock-icon {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; pointer-events:none;
+}
+
+#backdrop {
+  position:absolute; inset:0;
+  background:rgba(0,0,0,0.72);
+  backdrop-filter:blur(5px);
+  z-index:200; opacity:0; pointer-events:none;
+  transition:opacity 0.3s;
+}
+#backdrop.active { opacity:1; pointer-events:all; }
+
+.panel {
+  position:absolute; bottom:0; left:0; right:0;
+  background: rgb(0,0,0);
+  border-radius:22px 22px 0 0;
+  border-top:1px solid var(--border);
+  z-index:300;
+  transform:translateY(100%);
+  transition:transform 0.44s cubic-bezier(0.34,1.38,0.64,1);
+  box-shadow:0 -16px 50px rgba(0,0,0,0);
+  overflow:hidden;
+}
+.panel.open { transform:translateY(0); }
+
+.panel-handle {
+  width:34px; height:4px;
+  background:var(--border); border-radius:2px;
+  margin:14px auto 0;
+}
+
+.panel-inner { padding:0 20px 36px; }
+
+.panel-topbar {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 0 10px;
+}
+
+.panel-title {
+  font-family:var(--display); font-size:12px;
+  font-weight:700; letter-spacing:2.5px;
+  color:var(--text); text-transform:uppercase;
+}
+
+.btn-close {
+  width:30px; height:30px;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:50%; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  color:var(--muted); font-size:13px;
+  transition:background .2s, color .2s;
+}
+.btn-close:hover { background:#24243a; color:var(--text); }
+
+/* ── PRODUCT ── */
+#product-panel { height:74vh; }
+
+.prod-meta { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:14px; }
+.prod-label { font-family:var(--mono); font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:4px; }
+.prod-price { font-family:var(--display); font-size:34px; font-weight:900; color:var(--text); line-height:1; }
+.prod-price sup { font-size:14px; font-weight:400; color: rgb(255,255,255); vertical-align:super; }
+.prod-tag { background:rgba(0,0,0,.14); border:1px solid rgba(0,0,0,.3); border-radius:6px; padding:4px 10px; font-family:var(--mono); font-size:9px; color: rgb(255,255,255); letter-spacing:1px; }
+
+#sketchfab-wrap {
+  position: relative;
+  width: 100%; height: 240px;
+  border-radius: 16px; overflow: hidden;
+  background: var(--surface2); border: 1px solid var(--border);
+}
+#sf-frame {
+  width: 100%; height: 100%;
+  border: none; display: block;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+#sf-loading {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--muted); letter-spacing: 2px; text-transform: uppercase;
+  transition: opacity .4s; pointer-events: none;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.loader-ring { width:28px; height:28px; border:2px solid var(--border); border-top-color:var(--orange); border-radius:50%; animation:spin .8s linear infinite; }
+
+.prod-desc { margin-top:12px; font-family:var(--mono); font-size:10px; color:var(--muted); line-height:1.9; letter-spacing:.3px; }
+
+.buy-btn { margin-top:14px; width:100%; padding:15px; background:linear-gradient(135deg,#ff3b3b,#ff6d35); border:none; border-radius:14px; color:#fff; font-family:var(--display); font-size:10px; font-weight:700; letter-spacing:3px; cursor:pointer; text-transform:uppercase; transition:opacity .2s, transform .15s; }
+.buy-btn:active { opacity:.85; transform:scale(.98); }
+
+/* ── PUZZLE ── */
+#puzzle-panel { height:64vh; }
+
+.puzzle-sub { font-family:var(--mono); font-size:9px; color:var(--muted); letter-spacing:1px; line-height:1.8; margin-bottom:18px; }
+
+.hint-row { display:flex; gap:7px; justify-content:center; margin-bottom:14px; }
+.hint-dot { width:7px; height:7px; border-radius:50%; background:var(--border); transition:background .3s, box-shadow .3s; }
+.hint-dot.ok  { background:var(--green);  box-shadow:0 0 7px var(--green); }
+.hint-dot.bad { background:#ff3b3b; box-shadow:0 0 7px #ff3b3b; }
+
+.lock-dials { display:flex; gap:10px; justify-content:center; margin-bottom:14px; }
+
+.dial { display:flex; flex-direction:column; align-items:center; gap:7px; }
+
+.dial-btn { width:54px; height:32px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s, transform .1s; }
+.dial-btn:active { transform:scale(.9); background:#22223a; }
+
+.dial-box { width:54px; height:68px; background:var(--surface2); border:2px solid var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; font-family:var(--display); font-size:28px; font-weight:900; color:var(--text); position:relative; overflow:hidden; transition:border-color .3s, box-shadow .3s; }
+.dial-box::after { content:''; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--border); }
+.dial-box.lit-ok  { border-color:var(--green);  box-shadow:0 0 14px rgba(0,230,118,.3); }
+.dial-box.lit-bad { border-color:#ff3b3b; box-shadow:0 0 14px rgba(255,59,59,.3); }
+
+@keyframes flip { 0%{transform:scaleY(1)} 50%{transform:scaleY(0)} 100%{transform:scaleY(1)} }
+.flip { animation:flip .18s ease; }
+
+.unlock-btn { width:100%; padding:14px; background:linear-gradient(135deg,#1f0000,#b50000); border:none; border-radius:14px; color:#fff; font-family:var(--display); font-size:10px; font-weight:700; letter-spacing:3px; cursor:pointer; text-transform:uppercase; transition:opacity .2s, transform .15s; }
+.unlock-btn:active { opacity:.85; transform:scale(.98); }
+
+.attempt-dots { display:flex; gap:5px; justify-content:center; margin-top:12px; }
+.att-dot { width:8px; height:8px; border-radius:50%; background:rgba(255,59,59,.2); border:1px solid rgba(255,59,59,.35); transition:background .3s; }
+.att-dot.used { background:#ff3b3b; box-shadow:0 0 5px #ff3b3b; }
+
+.puzzle-msg { text-align:center; margin-top:12px; font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:1px; min-height:16px; }
+.puzzle-msg.ok  { color:var(--green); }
+.puzzle-msg.bad { color:#ff3b3b; }
+
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-10px)} 40%{transform:translateX(10px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }
+.shake { animation:shake .38s ease; }
+
+/* ══════════════════════════════════════
+   ⚡ FLASH — белая вспышка при переходе
+   (z-index выше сцен, ниже видео)
+   ══════════════════════════════════════ */
+#flash {
+  position: absolute; inset: 0;
+  background: #fff;
+  opacity: 0;
+  z-index: 600;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+#flash.in { opacity: 1; pointer-events: all; }
+
+/* ══════════════════════════════════════
+   🎬 VIDEO OVERLAY — контейнер с видео
+   поверх вспышки, под финальным fade
+   ══════════════════════════════════════ */
+#video-overlay {
+  position: absolute; inset: 0;
+  background: #000;
+  z-index: 700;
+  display: none;            /* скрыт по умолчанию */
+  align-items: center;
+  justify-content: center;
+}
+#video-overlay.active { display: flex; }
+
+#transition-video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+
+/* ══════════════════════════════════════
+   — Сцена 3 — объекты
+   Настройте top/left/width/height под ваш фон
+   ══════════════════════════════════════ */
+/* Кнопка «Портал в сцену 3» на сцене 1 */
+.s1-scene3-btn {
+  background: rgba(0, 0, 0, 0);
+  border: 2px solid rgba(0, 0, 0, 0);
+  top: 30%; left: 10%; width: 25%; height: 15%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 8px; letter-spacing: 1px;
+  color: rgba(255,255,255,0.9); text-transform: uppercase;
+}
+
+/* Персонаж / дверь / вопрос на сцене 3 */
+.s3-question { background: url('vopros.png') center/cover no-repeat; top:25%; left:11%; width:40%; height:11%; cursor:default!important; }
+.s3-person   { background: url('pers3.png')  center/contain no-repeat; top:45%; left:5%; width:45%; height:28%; transform: scale(1.3); }
+.s3-door     { background: url('door3.png')  center/contain no-repeat; top:43%; right:7%; width:30%; height:26%; transform: scale(1.1); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="fade"></div>
+
+  <!-- ══ SCENE 1 ══ -->
+  <div class="scene active" id="scene1">
+    <div class="scene-label">SCENE 01 · 03</div>
+    <div class="rect s1-green squish"></div>
+    <div class="rect s1-red" onclick="openProduct()"></div>
+    <div class="rect s1-blue" onclick="goToScene(2)"><div class="door-label"></div></div>
+    <!-- 🔮 Кнопка перехода в сцену 3 с видео-переходом -->
+    <div class="rect s1-scene3-btn" onclick="goToScene3()"></div>
+  </div>
+
+  <!-- ══ SCENE 2 ══ -->
+  <div class="scene" id="scene2">
+    <div class="scene-label">SCENE 02 · 03</div>
+    <div class="rect s2-purple" onclick="openPuzzle()"><div class="lock-icon">🔐</div></div>
+    <div class="rect s2-green squish"></div>
+    <div class="rect s2-blue" onclick="goToScene(1)"><div class="door-label"></div></div>
+    <div class="rect s2-red" onclick="openProduct()"></div>
+  </div>
+
+  <!-- ══ SCENE 3 ══ -->
+  <div class="scene" id="scene3">
+    <div class="scene-label">SCENE 03 · 03</div>
+    <div class="rect s3-question squish"></div>
+    <div class="rect s3-person" onclick="openProduct()"></div>
+    <!-- Дверь назад — возврат на сцену 1 обычным переходом -->
+    <div class="rect s3-door" onclick="goToScene(1)"><div class="door-label"></div></div>
+  </div>
+
+  <!-- ⚡ Белая вспышка (step 1: осветление) -->
+  <div id="flash"></div>
+
+  <!-- 🎬 Видео-оверлей (step 2: воспроизведение видео)
+       Замените 'transition.mp4' на путь к вашему видео-файлу -->
+  <div id="video-overlay">
+    <video id="transition-video" playsinline muted>
+      <source src="transition.mp4" type="video/mp4">
+    </video>
+  </div>
+
+  <div id="backdrop" onclick="closeAll()"></div>
+
+  <!-- ══ PRODUCT PANEL ══ -->
+  <div class="panel" id="product-panel">
+    <div class="panel-handle"></div>
+    <div class="panel-inner">
+      <div class="panel-topbar">
+        <div class="panel-title">Брелок</div>
+        <button class="btn-close" onclick="closePanel('product-panel')">✕</button>
+      </div>
+      <div class="prod-meta">
+        <div>
+          <div class="prod-label">Model — 001</div>
+          <div class="prod-price"><sup>$</sup>299<span style="font-size:18px;color:var(--muted)">.99</span></div>
+        </div>
+        <div class="prod-tag">В НАЛИЧИИ</div>
+      </div>
+      <div id="sketchfab-wrap">
+        <div id="sf-loading">
+          <div class="loader-ring"></div>
+          <span>Загрузка модели</span>
+        </div>
+        <iframe
+          id="sf-frame"
+          src=""
+          allow="autoplay; fullscreen; xr-spatial-tracking"
+          allowfullscreen
+          frameborder="0"
+        ></iframe>
+      </div>
+      <p class="prod-desc">Интерактивная 3D модель · Перетащите чтобы повернуть<br>Материал: металлический сплав · Вес: 1.2 кг</p>
+    </div>
+  </div>
+
+  <!-- ══ PUZZLE PANEL ══ -->
+  <div class="panel" id="puzzle-panel">
+    <div class="panel-handle"></div>
+    <div class="panel-inner">
+      <div class="panel-topbar">
+        <div class="panel-title">Кодовый замок</div>
+        <button class="btn-close" onclick="closePanel('puzzle-panel')">✕</button>
+      </div>
+      <p class="puzzle-sub">Подберите код из 3 цифр (1–6) чтобы открыть замок</p>
+      <div class="hint-row">
+        <div class="hint-dot" id="h0"></div>
+        <div class="hint-dot" id="h1"></div>
+        <div class="hint-dot" id="h2"></div>
+      </div>
+      <div class="lock-dials" id="lock-dials">
+        <div class="dial">
+          <button class="dial-btn" onclick="spin(0,1)">▲</button>
+          <div class="dial-box" id="d0">1</div>
+          <button class="dial-btn" onclick="spin(0,-1)">▼</button>
+        </div>
+        <div class="dial">
+          <button class="dial-btn" onclick="spin(1,1)">▲</button>
+          <div class="dial-box" id="d1">1</div>
+          <button class="dial-btn" onclick="spin(1,-1)">▼</button>
+        </div>
+        <div class="dial">
+          <button class="dial-btn" onclick="spin(2,1)">▲</button>
+          <div class="dial-box" id="d2">1</div>
+          <button class="dial-btn" onclick="spin(2,-1)">▼</button>
+        </div>
+      </div>
+      <button class="unlock-btn" onclick="checkCode()">Открыть замок</button>
+      <div class="attempt-dots">
+        <div class="att-dot" id="a0"></div>
+        <div class="att-dot" id="a1"></div>
+        <div class="att-dot" id="a2"></div>
+        <div class="att-dot" id="a3"></div>
+        <div class="att-dot" id="a4"></div>
+      </div>
+      <div class="puzzle-msg" id="puzzle-msg"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ════════════════════════════════════════════
+   ⚙️  НАСТРОЙКИ — МЕНЯЙТЕ ТОЛЬКО ЗДЕСЬ
+   ════════════════════════════════════════════ */
+
+const SCENES = {
+  1: {
+    sketchfabId: 'cfb5b2977305409a959bc9a6a1b8ebad',  // ← ID модели сцены 1
+    name:   '1 брелок',   // ← название
+    price:  '$999.99',       // ← цена
+    desc:   'Инфа / Состав / вес',
+  },
+  2: {
+    sketchfabId: 'cfb5b2977305409a959bc9a6a1b8ebad',  // ← ID модели сцены 2
+    name:   '2 брелок',
+    price:  '$999.99',
+    desc:   'Инфа / Состав / вес',
+  },
+  3: {
+    sketchfabId: 'cfb5b2977305409a959bc9a6a1b8ebad',  // ← ID модели сцены 3
+    name:   '3 брелок',
+    price:  '$999.99',
+    desc:   'Инфа / Состав / вес',
+  },
+};
+
+/* Секретный код замка (3 цифры от 1 до 6) */
+const SECRET_CODE = [3, 5, 2];
+
+/* ════════════════════════════════════════════ */
+
+
+/* ── Scenes ── */
+let currentScene = 1;
+function goToScene(n) {
+  if (n === currentScene) return;
+  const fade = document.getElementById('fade');
+  fade.classList.add('in');
+  setTimeout(() => {
+    document.getElementById('scene' + currentScene).classList.remove('active');
+    document.getElementById('scene' + n).classList.add('active');
+    currentScene = n;
+    setTimeout(() => fade.classList.remove('in'), 40);
+  }, 450);
+}
+
+/* ════════════════════════════════════════════
+   🎬 ПЕРЕХОД В СЦЕНУ 3 — пошаговая логика:
+
+   ШАГ 1 (0мс)      — Белая вспышка: #flash плавно
+                       появляется (opacity 0 → 1) за 400мс.
+                       Экран "осветляется".
+
+   ШАГ 2 (500мс)    — Вспышка убирается, показывается
+                       #video-overlay поверх сцены.
+                       Видео начинает воспроизводиться.
+
+   ШАГ 3 (по окончании видео)
+                     — Когда видео заканчивается,
+                       чёрный #fade плавно появляется
+                       (opacity 0 → 1) за 450мс.
+
+   ШАГ 4 (fade готов) — Видео-оверлей скрывается,
+                       сцена 3 становится активной (currentScene=3),
+                       #fade плавно исчезает (opacity 1 → 0).
+   ════════════════════════════════════════════ */
+function goToScene3() {
+  if (currentScene === 3) return;           // уже на сцене 3 — выходим
+
+  const flash   = document.getElementById('flash');
+  const videoOv = document.getElementById('video-overlay');
+  const video   = document.getElementById('transition-video');
+  const fade    = document.getElementById('fade');
+
+  // ── ШАГ 1: Белая вспышка ──────────────────
+  flash.classList.add('in');               // белый оверлей появляется
+
+  setTimeout(() => {
+    // ── ШАГ 2: Убираем вспышку, показываем видео ──
+    flash.classList.remove('in');          // белый оверлей гаснет
+    videoOv.classList.add('active');       // показываем контейнер с видео
+    video.currentTime = 0;                 // перематываем видео в начало
+    video.play().catch(() => {
+      // Если видео не смогло воспроизвестись (нет файла)
+      // — сразу переходим к шагу 3
+      finishTransition();
+    });
+
+    // ── ШАГ 3: Когда видео закончится → чёрный экран ──
+    video.onended = finishTransition;
+
+  }, 500); // 500мс — ждём пока вспышка достигнет пика
+
+  function finishTransition() {
+    video.onended = null;                  // убираем обработчик чтобы не сработал дважды
+
+    // ── ШАГ 3: Чёрный экран появляется ──────
+    fade.classList.add('in');              // чёрный #fade плавно появляется
+
+    setTimeout(() => {
+      // ── ШАГ 4: Переключаем на сцену 3 ──────
+      document.getElementById('scene' + currentScene).classList.remove('active');
+      document.getElementById('scene3').classList.add('active');
+      currentScene = 3;
+
+      videoOv.classList.remove('active'); // скрываем видео-оверлей
+
+      // Небольшая задержка чтобы DOM обновился, потом гасим чёрный экран
+      setTimeout(() => fade.classList.remove('in'), 60);
+
+    }, 450); // 450мс — время появления чёрного экрана
+  }
+}
+
+/* ── Panels ── */
+function openPanel(id) {
+  closeAll();
+  setTimeout(() => {
+    document.getElementById(id).classList.add('open');
+    document.getElementById('backdrop').classList.add('active');
+  }, 10);
+}
+function closePanel(id) {
+  document.getElementById(id).classList.remove('open');
+  document.getElementById('backdrop').classList.remove('active');
+}
+function closeAll() {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
+  document.getElementById('backdrop').classList.remove('active');
+}
+function openPuzzle() { puzzleReset(); openPanel('puzzle-panel'); }
+
+/* ── Sketchfab viewer ── */
+let lastLoadedScene = null;
+
+function buildSketchfabUrl(id) {
+  const params = new URLSearchParams({
+    autostart: 1,
+    ui_theme: 'dark',
+    ui_controls: 0,
+    ui_infos: 0,
+    ui_watermark: 0,
+    ui_ar: 0,
+    ui_help: 0,
+    ui_settings: 0,
+    ui_vr: 0,
+    ui_fullscreen: 1,
+    ui_annotations: 0,
+    transparent: 0,
+    dnt: 1,
+  });
+  return `https://sketchfab.com/models/${id}/embed?${params}`;
+}
+
+function loadSketchfab(sceneNum) {
+  if (lastLoadedScene === sceneNum) return;
+  lastLoadedScene = sceneNum;
+
+  const cfg    = SCENES[sceneNum];
+  const frame  = document.getElementById('sf-frame');
+  const loader = document.getElementById('sf-loading');
+
+  // Show loader, hide frame while new model loads
+  frame.style.opacity = '0';
+  loader.style.display = 'flex';
+  loader.style.opacity = '1';
+  loader.innerHTML = '<div class="loader-ring"></div><span>Загрузка модели</span>';
+
+  frame.src = buildSketchfabUrl(cfg.sketchfabId);
+
+  frame.onload = () => {
+    loader.style.opacity = '0';
+    frame.style.opacity  = '1';
+    setTimeout(() => loader.style.display = 'none', 400);
+  };
+}
+
+function openProduct() {
+  const cfg = SCENES[currentScene];
+  document.querySelector('.prod-label').textContent = cfg.name;
+  document.querySelector('.prod-desc').textContent  = cfg.desc;
+  const [dollars, cents] = cfg.price.replace('$','').split('.');
+  document.querySelector('.prod-price').innerHTML =
+    `<sup>$</sup>${dollars}<span style="font-size:18px;color:var(--muted)">.${cents||'00'}</span>`;
+
+  openPanel('product-panel');
+  setTimeout(() => loadSketchfab(currentScene), 200);
+}
+
+// Ценники
+
+
+/* ── Puzzle ── */
+const digits = [1,1,1];
+const MAX_ATT = 5;
+let attempts = 0, solved = false;
+
+function spin(i, dir) {
+  if (solved) return;
+  digits[i] = ((digits[i]-1+dir+6)%6)+1;
+  const box = document.getElementById('d'+i);
+  box.classList.remove('flip'); void box.offsetWidth; box.classList.add('flip');
+  box.textContent = digits[i];
+  clearHints();
+}
+
+function clearHints() {
+  [0,1,2].forEach(i => {
+    document.getElementById('h'+i).className = 'hint-dot';
+    document.getElementById('d'+i).className = 'dial-box';
+  });
+  const msg = document.getElementById('puzzle-msg');
+  msg.textContent=''; msg.className='puzzle-msg';
+}
+
+function checkCode() {
+  if (solved || attempts >= MAX_ATT) return;
+  const win = digits.every((v,i) => v === SECRET_CODE[i]);
+  if (win) {
+    solved = true;
+    [0,1,2].forEach(i => {
+      document.getElementById('h'+i).className='hint-dot ok';
+      document.getElementById('d'+i).className='dial-box lit-ok';
+    });
+    const msg = document.getElementById('puzzle-msg');
+    msg.textContent='✅ ЗАМОК ОТКРЫТ!'; msg.className='puzzle-msg ok';
+    let c=0;
+    const iv = setInterval(()=>{
+      document.querySelectorAll('.dial-box').forEach(b=>
+        b.style.background=c%2?'rgba(0,230,118,.15)':'var(--surface2)');
+      if(++c>6) clearInterval(iv);
+    },110);
+  } else {
+    document.getElementById('a'+attempts).classList.add('used');
+    attempts++;
+    [0,1,2].forEach(i => {
+      const ok = digits[i]===SECRET_CODE[i];
+      document.getElementById('h'+i).className='hint-dot '+(ok?'ok':'bad');
+      document.getElementById('d'+i).className='dial-box '+(ok?'lit-ok':'lit-bad');
+    });
+    const dials=document.getElementById('lock-dials');
+    dials.classList.remove('shake'); void dials.offsetWidth; dials.classList.add('shake');
+    const msg=document.getElementById('puzzle-msg');
+    msg.textContent = attempts>=MAX_ATT
+      ? '🔒 Попытки исчерпаны. Замок заблокирован.'
+      : `❌ Неверно · Осталось: ${MAX_ATT-attempts}`;
+    msg.className='puzzle-msg bad';
+  }
+}
+
+function puzzleReset() {
+  if (solved) return;
+  digits.fill(1); attempts=0;
+  [0,1,2].forEach(i=>{
+    document.getElementById('d'+i).textContent=1;
+    document.getElementById('d'+i).className='dial-box';
+    document.getElementById('h'+i).className='hint-dot';
+  });
+  for(let i=0;i<5;i++) document.getElementById('a'+i).classList.remove('used');
+  document.getElementById('puzzle-msg').textContent='';
+  document.getElementById('puzzle-msg').className='puzzle-msg';
+}
+
+// Expose functions to global scope (required for onclick handlers in module scripts)
+window.goToScene   = goToScene;
+window.goToScene3  = goToScene3;
+window.openProduct = openProduct;
+window.openPuzzle  = openPuzzle;
+window.closePanel  = closePanel;
+window.closeAll    = closeAll;
+window.spin        = spin;
+window.checkCode   = checkCode;
+</script>
+
+<!-- ══════════════════════════════════════════════
+     🤖  TELEGRAM MINI APP — адаптация
+     Этот блок добавлен поверх оригинального кода.
+     Оригинальный код выше не тронут.
+     ══════════════════════════════════════════════ -->
+<script>
+(function () {
+  const tg = window.Telegram && window.Telegram.WebApp;
+
+  /* ── 1. Инициализация Telegram (только если внутри Telegram) ── */
+  if (tg) {
+    tg.ready();
+    tg.expand();
+
+    /* Кнопка «Назад» */
+    const BackBtn = tg.BackButton;
+    const _openPanel  = window.openPanel;
+    const _closePanel = window.closePanel;
+    const _closeAll   = window.closeAll;
+
+    window.openPanel = function (id) {
+      _openPanel(id);
+      BackBtn.show();
+    };
+    window.closePanel = function (id) {
+      _closePanel(id);
+      BackBtn.hide();
+    };
+    window.closeAll = function () {
+      _closeAll();
+      BackBtn.hide();
+    };
+    BackBtn.onClick(function () { window.closeAll(); });
+
+    /* Кнопка «Купить» */
+    document.addEventListener('click', function (e) {
+      if (!e.target.classList.contains('buy-btn')) return;
+      const sceneNum = currentScene || 1;
+      const cfg      = SCENES[sceneNum];
+      const payload  = JSON.stringify({
+        action: 'buy', scene: sceneNum,
+        name: cfg ? cfg.name : '', price: cfg ? cfg.price : '',
+      });
+      tg.initData ? tg.sendData(payload) : alert('sendData: ' + payload);
+    });
+
+    /* Цвет статус-бара */
+    try {
+      const color = tg.themeParams.bg_color || '#111118';
+      tg.setHeaderColor(color);
+      tg.setBackgroundColor(color);
+    } catch (_) {}
+  }
+
+  /* ══════════════════════════════════════════════
+     ── 2. ВИБРАЦИЯ — работает везде ──
+     Приоритет: Telegram HapticFeedback → navigator.vibrate
+     ══════════════════════════════════════════════ */
+
+  /* Паттерны для navigator.vibrate (мс) */
+  const PATTERNS = {
+    light:   [20],
+    soft:    [35],
+    medium:  [50],
+    rigid:   [70],
+    heavy:   [90],
+    success: [40, 60, 80],
+    error:   [80, 40, 80],
+  };
+
+  function vibrate(type) {
+    /* Сначала пробуем Telegram HapticFeedback */
+    try {
+      const hap = tg && tg.HapticFeedback;
+      if (hap) {
+        if (type === 'success' || type === 'error') {
+          hap.notificationOccurred(type);
+        } else {
+          hap.impactOccurred(type);
+        }
+        return;
+      }
+    } catch (_) {}
+
+    /* Запасной вариант — navigator.vibrate (работает на Android) */
+    try {
+      if (navigator.vibrate) navigator.vibrate(PATTERNS[type] || [40]);
+    } catch (_) {}
+  }
+
+  /* ── Клики по всем интерактивным элементам ── */
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+
+    if (t.closest('.dial-btn'))  { vibrate('light');  return; }
+    if (t.closest('.btn-close')) { vibrate('light');  return; }
+    if (t.id === 'backdrop')     { vibrate('light');  return; }
+    if (t.closest('.unlock-btn')){ vibrate('medium'); return; }
+    if (t.closest('.buy-btn'))   { vibrate('heavy');  return; }
+
+    /* Клики по сценам (персонаж, дверь, замок) */
+    if (t.closest('.rect'))      { vibrate('medium'); return; }
+  }, true); /* capture: true — срабатывает раньше onclick */
+
+  /* ── Результат замка ── */
+  const _checkCode = window.checkCode;
+  window.checkCode = function () {
+    const wasSolved = solved;
+    _checkCode();
+    if (solved && !wasSolved) {
+      vibrate('success');
+      setTimeout(function () { vibrate('heavy'); }, 250);
+    } else if (!solved) {
+      vibrate('error');
+      setTimeout(function () { vibrate('medium'); }, 180);
+    }
+  };
+
+  /* ── Переход между сценами ── */
+  const _goToScene = window.goToScene;
+  window.goToScene = function (n) {
+    if (n !== currentScene) vibrate('rigid');
+    _goToScene(n);
+  };
+
+  /* ── Открытие панели ── */
+  const _openPanelVib = window.openPanel;
+  window.openPanel = function (id) {
+    vibrate('soft');
+    _openPanelVib(id);
+  };
+
+})();
+</script>
+</body>
+</html>
